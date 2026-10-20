@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sorter Preselectividad</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#7f1d1d">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+:root{
+  --fondo:#f6f0ee;--panel:#fff;--tinta:#1f1413;--tenue:#7a6360;--linea:#e2d3cf;
+  --marca:#7f1d1d;--granate:#a4161a;--teja:#c75146;--ladrillo:#d98b6a;--ciruela:#5c1a2e;
+  --sombra:rgba(60,20,18,.09);
+  --display:'Archivo',system-ui,sans-serif;--mono:'IBM Plex Mono',ui-monospace,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --fondo:#1a0f0e;--panel:#261716;--tinta:#f0e2df;--tenue:#a98d89;--linea:#3d2523;
+  --marca:#e0756f;--granate:#c43b3b;--teja:#d4695c;--ladrillo:#e0a07f;--ciruela:#8f3550;
+  --sombra:rgba(0,0,0,.45);color-scheme:dark;}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--fondo);color:var(--tinta);font-family:var(--display);
+  padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px));
+  padding-block:env(safe-area-inset-top,0px) calc(28px + env(safe-area-inset-bottom,0px));
+  max-width:620px;margin-inline:auto;-webkit-text-size-adjust:100%}
+img{max-width:100%}[hidden]{display:none!important}
+
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:var(--fondo);
+  padding-block:12px 10px;border-bottom:2px solid var(--marca);display:flex;align-items:baseline;
+  justify-content:space-between;gap:8px}
+header h1{font-size:14px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;margin:0;color:var(--marca)}
+header span{font-size:11px;color:var(--tenue);font-variant-numeric:tabular-nums;text-align:right}
+
+#camara{margin-top:12px;border-radius:4px;overflow:hidden;background:#000;position:relative;aspect-ratio:4/3}
+#camara video{width:100%;height:100%;object-fit:cover;display:block}
+#mira{position:absolute;inset:22% 8%;border:3px solid rgba(255,255,255,.85);border-radius:6px;
+  box-shadow:0 0 0 2000px rgba(0,0,0,.3)}
+
+.captura{display:flex;gap:8px;margin-top:12px}
+#codigo{flex:1;min-width:0;font:600 19px/1 var(--mono);letter-spacing:.04em;padding:14px 12px;
+  border:2px solid var(--marca);border-radius:3px;background:var(--panel);color:var(--tinta);text-transform:uppercase}
+#codigo::placeholder{font:500 14px/1 var(--display);letter-spacing:normal;color:var(--tenue)}
+.captura button{font:700 12px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;padding:0 16px;
+  border:none;border-radius:3px;background:var(--marca);color:#fff}
+
+.veredicto{margin-top:12px;border-radius:4px;padding:20px 16px;background:var(--panel);
+  border:1px solid var(--linea);box-shadow:0 1px 2px var(--sombra);min-height:140px;
+  display:flex;flex-direction:column;justify-content:center;gap:6px}
+.veredicto[data-tono]{border:none}
+.veredicto[data-tono="fivps"]{background:var(--marca)}
+.veredicto[data-tono="libre"]{background:var(--ladrillo)}
+.veredicto[data-tono="c2c"]{background:var(--teja)}
+.veredicto[data-tono="aforo"]{background:var(--ciruela)}
+.veredicto[data-tono="carta"]{background:var(--granate)}
+.veredicto[data-tono="otro"]{background:var(--granate)}
+.veredicto[data-tono="nulo"]{background:#3b2220}
+.veredicto[data-tono] .clase,.veredicto[data-tono] .caida,.veredicto[data-tono] .ref,
+.veredicto[data-tono] .nota{color:#fff}
+.clase{font-size:42px;font-weight:700;line-height:1;letter-spacing:-.02em;margin:0;color:var(--tenue);text-wrap:balance}
+.caida{font:600 17px/1.2 var(--mono);margin:0;color:#fff;opacity:.95}
+.ref{font:500 13px/1.3 var(--mono);margin:0;opacity:.8;color:#fff}
+.nota{font-size:12.5px;margin:0;color:var(--tenue)}
+
+h2{font:700 11px/1.4 var(--display);letter-spacing:.16em;text-transform:uppercase;color:var(--tenue);
+  margin:24px 0 8px;display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+h2 em{font:500 11px/1 var(--mono);font-style:normal;letter-spacing:0}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--linea);border-radius:4px;overflow:hidden}
+th,td{padding:9px 12px;text-align:left;font-size:13.5px;border-bottom:1px solid var(--linea)}
+th{font:700 10px/1.4 var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--tenue);background:var(--fondo)}
+tr:last-child td{border-bottom:none}
+td.n{text-align:right;font:600 15px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--marca)}
+td.vacio{text-align:center;color:var(--tenue);font-size:13px}
+.acciones{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.acciones button,.acciones label{flex:1 1 auto;min-width:138px;text-align:center;
+  font:600 12px/1.2 var(--display);letter-spacing:.05em;text-transform:uppercase;padding:11px 10px;
+  border:1px solid var(--linea);background:var(--panel);color:var(--tinta);border-radius:3px;cursor:pointer}
+.acciones .destacado{background:var(--marca);border-color:var(--marca);color:#fff}
+.aviso{font-size:12px;line-height:1.55;color:var(--tenue);margin-top:10px}
+button:focus-visible,input:focus-visible{outline:2px solid var(--marca);outline-offset:2px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Sorter · Preselectividad</h1>
+  <span id="sello">sin base cargada</span>
+</header>
+
+<div id="camara" hidden>
+  <video id="video" playsinline muted></video>
+  <div id="mira"></div>
+</div>
+
+<div class="captura">
+  <input id="codigo" inputmode="text" autocomplete="off" autocapitalize="characters"
+         spellcheck="false" placeholder="Escanea o escribe la referencia">
+  <button type="button" id="btnBuscar">Buscar</button>
+</div>
+
+<div class="veredicto" id="veredicto">
+  <p class="clase" id="clase">Esperando envío</p>
+  <p class="nota" id="nota">Carga la base del sorter y aprieta Usar cámara.</p>
+  <p class="caida" id="caida" hidden></p>
+  <p class="ref" id="ref" hidden></p>
+</div>
+
+<div class="acciones">
+  <button type="button" id="btnCamara" class="destacado">Usar cámara</button>
+  <label class="acc" for="archivo">Cargar base</label>
+  <input id="archivo" type="file" accept=".json,.csv,.txt" hidden>
+  <button type="button" id="btnSonido">Sonido: sí</button>
+</div>
+
+<h2>Lo escaneado hoy <em id="totalEscaneos"></em></h2>
+<table>
+  <thead><tr><th>Clasificación</th><th>Caída sorter</th><th style="text-align:right">Envíos</th></tr></thead>
+  <tbody id="tablaResumen"><tr><td class="vacio" colspan="3">Todavía no hay escaneos</td></tr></tbody>
+</table>
+
+<h2>Cierre</h2>
+<div class="acciones">
+  <button type="button" id="btnReporte" class="destacado">Descargar reporte</button>
+  <button type="button" id="btnReiniciar">Borrar lo escaneado</button>
+</div>
+<p class="aviso">El reporte sale en CSV con la hora, la referencia, la clasificación y la caída de sorter de cada envío, incluidas las referencias que no estaban en la base.</p>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+let base = null, mapa = null, registro = [], sonido = true;
+let flujo = null, detector = null, ocupado = false, ultimo = { cod:'', t:0 };
+
+const TONOS = { FIVPS:'fivps', LIBRE:'libre', C2C:'c2c', AFORO:'aforo', CARTA:'carta', RECLAMO:'otro' };
+const normalizar = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const hora = d => d.toLocaleString('es-CL', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+
+/* ---------- guardar la base en IndexedDB (2 MB no caben en localStorage) ---------- */
+function db(modo, fn) {
+  return new Promise((ok, no) => {
+    const p = indexedDB.open('sorter', 1);
+    p.onupgradeneeded = () => p.result.createObjectStore('bases');
+    p.onerror = () => no(p.error);
+    p.onsuccess = () => {
+      const t = p.result.transaction('bases', modo), r = fn(t.objectStore('bases'));
+      r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error);
+    };
+  });
+}
+const guardarBase = b => db('readwrite', s => s.put(b, 'sorter')).catch(() => {});
+const leerBase = () => db('readonly', s => s.get('sorter')).catch(() => null);
+
+function guardarLocal() {
+  try {
+    localStorage.setItem('sorter.registro', JSON.stringify(registro));
+    localStorage.setItem('sorter.sonido', sonido ? '1' : '0');
+  } catch (e) {}
+}
+
+/* ---------- sonido ---------- */
+let audio = null;
+function pitido(hz, ms, retraso) {
+  if (!sonido) return;
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = audio.currentTime + retraso / 1000;
+    const osc = audio.createOscillator(), vol = audio.createGain();
+    osc.frequency.value = hz; osc.type = 'square';
+    vol.gain.setValueAtTime(0.0001, t0);
+    vol.gain.exponentialRampToValueAtTime(0.25, t0 + 0.012);
+    vol.gain.exponentialRampToValueAtTime(0.0001, t0 + ms / 1000);
+    osc.connect(vol).connect(audio.destination);
+    osc.start(t0); osc.stop(t0 + ms / 1000 + 0.02);
+  } catch (e) {}
+}
+function alarma(tipo) {
+  const v = n => { try { navigator.vibrate && navigator.vibrate(n); } catch (e) {} };
+  if (tipo === 'ok')   { pitido(1200,110,0); pitido(1550,150,130); v(80); }
+  if (tipo === 'ojo')  { pitido(620,200,0);  pitido(620,200,240);  v([110,70,110]); }
+  if (tipo === 'nulo') { pitido(300,420,0);  v(330); }
+}
+
+/* ---------- pantalla ---------- */
+function mostrar(tono, clase, nota, caida, ref) {
+  const v = $('veredicto');
+  if (tono) v.dataset.tono = tono; else delete v.dataset.tono;
+  $('clase').textContent = clase;
+  $('nota').textContent = nota || ''; $('nota').hidden = !nota;
+  $('caida').textContent = caida || ''; $('caida').hidden = !caida;
+  $('ref').textContent = ref || ''; $('ref').hidden = !ref;
+}
+
+function pintarResumen() {
+  $('totalEscaneos').textContent = registro.length ? registro.length + ' escaneos' : '';
+  const t = $('tablaResumen');
+  if (!registro.length) { t.innerHTML = '<tr><td class="vacio" colspan="3">Todavía no hay escaneos</td></tr>'; return; }
+  const cuenta = new Map();
+  registro.forEach(r => {
+    const k = r.cl + '|' + r.ca;
+    cuenta.set(k, (cuenta.get(k) || 0) + 1);
+  });
+  const filas = [...cuenta.entries()].sort((a, b) => b[1] - a[1]);
+  t.innerHTML = '';
+  filas.forEach(([k, n]) => {
+    const [cl, ca] = k.split('|');
+    const tr = document.createElement('tr');
+    const a = document.createElement('td'); a.textContent = cl;
+    const b = document.createElement('td'); b.textContent = ca || '—';
+    const c = document.createElement('td'); c.className = 'n'; c.textContent = n;
+    tr.append(a, b, c); t.append(tr);
+  });
+}
+
+function sello() {
+  $('sello').textContent = base ? base.it.length.toLocaleString('es-CL') + ' referencias · ' + (base.fecha || 'base cargada') : 'sin base cargada';
+}
+
+/* ---------- búsqueda ---------- */
+function indexar() {
+  mapa = new Map();
+  base.it.forEach(x => { if (!mapa.has(x[0])) mapa.set(x[0], x[1]); });
+}
+
+function buscar(entrada) {
+  const cod = normalizar(entrada);
+  $('codigo').value = '';
+  if (!flujo) $('codigo').focus();
+  if (!cod) return;
+  if (!base) { mostrar('nulo', 'Falta la base', 'Pulsa Cargar base y elige el archivo del sorter.'); alarma('nulo'); return; }
+
+  const ahora = new Date();
+  const i = mapa.get(cod);
+
+  if (i === undefined) {
+    registro.push({ cod, cl:'NO ESTA EN LA BASE', ca:'', t: ahora.toISOString() });
+    mostrar('nulo', 'No está en la base', 'Esta referencia no figura en la base del sorter.', '', cod);
+    alarma('nulo'); guardarLocal(); pintarResumen(); return;
+  }
+
+  const [clase, caida] = base.cl[i];
+  registro.push({ cod, cl: clase, ca: caida, t: ahora.toISOString() });
+  mostrar(TONOS[clase] || 'otro', clase, '', caida, cod);
+  alarma(clase === 'RECLAMO' || clase === 'AFORO' ? 'ojo' : 'ok');
+  guardarLocal(); pintarResumen();
+}
+
+/* ---------- cámara ---------- */
+async function abrirCamara() {
+  if (flujo) { cerrarCamara(); return; }
+  if (!('BarcodeDetector' in window)) {
+    mostrar('nulo', 'Cámara no disponible', 'Este navegador no trae lector de códigos. Usa Chrome en Android, un escáner USB con adaptador OTG, o escribe la referencia.');
+    return;
+  }
+  try {
+    detector = detector || new window.BarcodeDetector({ formats:['code_128','code_39','ean_13','qr_code','itf','codabar'] });
+    flujo = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment', width:{ ideal:1280 } } });
+    const v = $('video'); v.srcObject = flujo; await v.play();
+    $('camara').hidden = false; $('btnCamara').textContent = 'Apagar cámara';
+    leer();
+  } catch (e) {
+    mostrar('nulo', 'No se pudo abrir la cámara', 'Revisa el permiso de cámara del navegador y vuelve a intentar.');
+  }
+}
+function cerrarCamara() {
+  if (flujo) flujo.getTracks().forEach(t => t.stop());
+  flujo = null; $('camara').hidden = true; $('btnCamara').textContent = 'Usar cámara';
+}
+async function leer() {
+  if (!flujo) return;
+  if (!ocupado) {
+    ocupado = true;
+    try {
+      const cs = await detector.detect($('video'));
+      if (cs.length) {
+        const cod = normalizar(cs[0].rawValue), t = Date.now();
+        if (cod && (cod !== ultimo.cod || t - ultimo.t > 2500)) { ultimo = { cod, t }; buscar(cod); }
+      }
+    } catch (e) {}
+    ocupado = false;
+  }
+  setTimeout(() => requestAnimationFrame(leer), 180);
+}
+
+/* ---------- carga de la base ---------- */
+function csv(txt) {
+  const li = txt.trim().split(/\r?\n/); if (li.length < 2) return null;
+  const sep = (li[0].match(/;/g) || []).length > (li[0].match(/,/g) || []).length ? ';' : ',';
+  const cl = [], idx = new Map(), it = [];
+  for (let i = 1; i < li.length; i++) {
+    const c = li[i].split(sep).map(s => s.trim().replace(/^"|"$/g, ''));
+    const ref = normalizar(c[0]); if (!ref) continue;
+    const caida = c[1] || '', clase = (c[2] || c[1] || '').toUpperCase();
+    const k = clase + '|' + caida;
+    if (!idx.has(k)) { idx.set(k, cl.length); cl.push([clase, caida]); }
+    it.push([ref, idx.get(k)]);
+  }
+  return it.length ? { cl, it } : null;
+}
+async function cargarTexto(txt, nombre) {
+  let d = null;
+  try { const j = JSON.parse(txt); d = j.sorter || j; } catch (e) { d = csv(txt); }
+  if (!d || !d.it) { mostrar('nulo', 'Archivo no reconocido', 'Usa el .json del sorter o un CSV con referencia, caída y clasificación.'); return; }
+  if (!d.fecha) d.fecha = nombre.replace(/\.(json|csv|txt)$/i, '');
+  base = d; indexar(); await guardarBase(base); sello();
+  mostrar(null, 'Base cargada', base.it.length.toLocaleString('es-CL') + ' referencias listas para consultar.');
+}
+
+/* ---------- reporte ---------- */
+function reporte() {
+  if (!registro.length) { mostrar('ojo', 'Nada que reportar', 'Todavía no hay referencias escaneadas.'); return; }
+  const filas = [['FECHA/HORA','REFERENCIA','CLASIFICACION','CAIDA SORTER']];
+  registro.forEach(r => filas.push([hora(new Date(r.t)), r.cod, r.cl, r.ca]));
+  const txt = '﻿' + filas.map(f => f.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([txt], { type:'text/csv;charset=utf-8' }));
+  a.download = 'reporte_sorter_' + new Date().toISOString().slice(0,16).replace(/[:T]/g,'-') + '.csv';
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  mostrar(null, 'Reporte descargado', registro.length + ' escaneos guardados en el archivo CSV.');
+}
+
+/* ---------- eventos ---------- */
+$('btnBuscar').addEventListener('click', () => buscar($('codigo').value));
+$('codigo').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); buscar($('codigo').value); } });
+$('btnCamara').addEventListener('click', abrirCamara);
+$('btnSonido').addEventListener('click', e => {
+  sonido = !sonido; e.target.textContent = 'Sonido: ' + (sonido ? 'sí' : 'no');
+  guardarLocal(); if (sonido) alarma('ok');
+});
+$('archivo').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  mostrar(null, 'Cargando base', 'Un momento, son miles de referencias.');
+  const fr = new FileReader();
+  fr.onload = () => cargarTexto(String(fr.result), f.name);
+  fr.readAsText(f, 'utf-8');
+  e.target.value = '';
+});
+$('btnReporte').addEventListener('click', reporte);
+$('btnReiniciar').addEventListener('click', () => {
+  if ($('clase').textContent !== 'Confirma el borrado') {
+    mostrar('ojo', 'Confirma el borrado', 'Vuelve a pulsar para borrar lo escaneado. La base se mantiene.');
+    return;
+  }
+  registro = []; guardarLocal(); pintarResumen();
+  mostrar(null, 'Registro borrado', 'Puedes empezar un turno nuevo.');
+});
+
+(async function inicio() {
+  try {
+    const r = localStorage.getItem('sorter.registro'); if (r) registro = JSON.parse(r);
+    sonido = localStorage.getItem('sorter.sonido') !== '0';
+  } catch (e) {}
+  $('btnSonido').textContent = 'Sonido: ' + (sonido ? 'sí' : 'no');
+  pintarResumen();
+  const b = await leerBase();
+  if (b && b.it) { base = b; indexar(); sello(); mostrar(null, 'Listo para escanear', 'Aprieta Usar cámara o escribe la referencia.'); }
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+})();
+</script>
+</body>
+</html>
