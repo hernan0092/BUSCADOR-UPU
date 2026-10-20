@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Preparar jornada</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --fondo:#f3f2ee;--panel:#fff;--tinta:#1c1b18;--tenue:#6f6c64;--linea:#dcd8cf;
+  --marca:#1f4d3f;--alerta:#a4161a;--sombra:rgba(28,27,24,.08);
+  --display:'Archivo',system-ui,sans-serif;--mono:'IBM Plex Mono',ui-monospace,monospace;color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --fondo:#14160f;--panel:#1e211a;--tinta:#eceadf;--tenue:#9a978c;--linea:#323628;
+  --marca:#79c0a4;--alerta:#e05c5c;--sombra:rgba(0,0,0,.4);color-scheme:dark;}}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--fondo);color:var(--tinta);font-family:var(--display);line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:env(safe-area-inset-top,0px) 48px;max-width:720px;margin-inline:auto}
+h1{font-size:26px;font-weight:700;margin:24px 0 4px;color:var(--marca)}
+.sub{color:var(--tenue);font-size:13px;margin:0 0 24px}
+fieldset{border:1px solid var(--linea);border-radius:5px;background:var(--panel);margin:0 0 16px;padding:16px;
+  box-shadow:0 1px 2px var(--sombra)}
+legend{font:700 11px/1 var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--tenue);padding:0 6px}
+label.campo{display:block;font:600 12px/1.6 var(--display);letter-spacing:.04em;text-transform:uppercase;color:var(--tenue);margin-bottom:4px}
+input[type=file],input[type=password],select{width:100%;font:500 15px/1.3 var(--display);padding:10px 12px;
+  border:1px solid var(--linea);border-radius:3px;background:var(--fondo);color:var(--tinta);margin-bottom:14px}
+input[type=password]{font-family:var(--mono)}
+.fila{display:flex;gap:12px;flex-wrap:wrap}
+.fila>div{flex:1 1 220px;min-width:0}
+button{font:700 13px/1 var(--display);letter-spacing:.07em;text-transform:uppercase;padding:14px 20px;
+  border:none;border-radius:3px;background:var(--marca);color:var(--fondo);cursor:pointer;width:100%}
+button[disabled]{opacity:.45;cursor:not-allowed}
+#estado{margin-top:16px;padding:14px;border-radius:4px;background:var(--panel);border:1px solid var(--linea);
+  font-size:13.5px;min-height:52px}
+#estado.error{border-color:var(--alerta);color:var(--alerta)}
+#estado b{font-family:var(--mono)}
+ol{padding-left:20px;font-size:13.5px;color:var(--tenue)}
+ol li{margin-bottom:6px}
+code{font-family:var(--mono);font-size:12.5px;background:var(--fondo);padding:1px 5px;border-radius:3px}
+.nota{font-size:12.5px;color:var(--tenue)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--marca);outline-offset:2px}
+</style>
+</head>
+<body>
+
+<h1>Preparar jornada</h1>
+<p class="sub">Convierte el reporte del día en el archivo que publicas en el repositorio.</p>
+
+<fieldset>
+  <legend>1 · Reporte del día</legend>
+  <label class="campo" for="tipo">Qué base vas a publicar</label>
+  <select id="tipo">
+    <option value="sorter">Sorter · preselectividad</option>
+    <option value="bodega">Bodega · despacho y plazos cumplidos</option>
+  </select>
+
+  <div id="zonaSorter">
+    <label class="campo" for="fSorter">Archivo del sorter (.xlsx, .csv o .json)</label>
+    <input type="file" id="fSorter" accept=".xlsx,.xls,.csv,.json">
+    <p class="nota">Toma la hoja BASE SORTER con las columnas REFERENCIA, CAIDA SORTER y CLASIFICACION.</p>
+  </div>
+
+  <div id="zonaBodega" hidden>
+    <div class="fila">
+      <div>
+        <label class="campo" for="fDespacho">Despacho a domicilio</label>
+        <input type="file" id="fDespacho" accept=".xlsx,.xls,.csv,.json">
+      </div>
+      <div>
+        <label class="campo" for="fPlazos">Plazos cumplidos</label>
+        <input type="file" id="fPlazos" accept=".xlsx,.xls,.csv,.json">
+      </div>
+    </div>
+    <p class="nota">Puedes publicar solo una de las dos; la que no cargues se mantiene como esté en el teléfono.</p>
+  </div>
+</fieldset>
+
+<button type="button" id="btn" disabled>Generar base.json</button>
+<div id="estado">Carga el reporte y escribe la clave.</div>
+
+<fieldset style="margin-top:24px">
+  <legend>2 · Publicar</legend>
+  <ol>
+    <li>Entra al repositorio que corresponda y pulsa <b>Add file → Upload files</b>.</li>
+    <li>Sube el archivo <code>base.json</code> que acabas de descargar. Si ya existe, GitHub lo reemplaza.</li>
+    <li><b>Commit changes</b>. En uno o dos minutos queda publicado.</li>
+    <li>Los operadores no hacen nada: la app toma la base nueva sola al abrirse.</li>
+  </ol>
+</fieldset>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+let salida = null;
+
+const limpiar = s => String(s == null ? '' : s).trim().replace(/^'+/, '').trim();
+const ref = s => limpiar(s).toUpperCase().replace(/[^A-Z0-9]/g, '');
+const clave = s => limpiar(s).toUpperCase()
+  .normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+function estado(txt, error) {
+  $('estado').innerHTML = txt;
+  $('estado').classList.toggle('error', !!error);
+}
+
+/* ---------- leer archivos ---------- */
+function leerTabla(file) {
+  return new Promise((ok, no) => {
+    const fr = new FileReader();
+    fr.onerror = () => no(new Error('No se pudo leer ' + file.name));
+    if (/\.json$/i.test(file.name)) {
+      fr.onload = () => { try { ok({ json: JSON.parse(String(fr.result)) }); } catch (e) { no(new Error('El .json no es válido')); } };
+      fr.readAsText(file, 'utf-8');
+      return;
+    }
+    fr.onload = () => {
+      try {
+        const wb = XLSX.read(fr.result, { type: 'array', cellDates: true });
+        const hojas = {};
+        wb.SheetNames.forEach(n => { hojas[n] = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, defval: '' }); });
+        ok({ hojas });
+      } catch (e) { no(new Error('No se pudo abrir ' + file.name)); }
+    };
+    fr.readAsArrayBuffer(file);
+  });
+}
+
+function elegirHoja(hojas, buscadas) {
+  const nombres = Object.keys(hojas);
+  for (const b of buscadas) {
+    const hit = nombres.find(n => clave(n).includes(clave(b)));
+    if (hit && hojas[hit].length > 1) return hojas[hit];
+  }
+  return hojas[nombres.reduce((a, b) => hojas[a].length >= hojas[b].length ? a : b, nombres[0])];
+}
+
+function columnas(fila) {
+  const m = {};
+  fila.forEach((c, i) => { const k = clave(c); if (k && !(k in m)) m[k] = i; });
+  return m;
+}
+function col(map, ...alternativas) {
+  for (const a of alternativas) {
+    const k = clave(a);
+    if (k in map) return map[k];
+    const hit = Object.keys(map).find(x => x.includes(k));
+    if (hit) return map[hit];
+  }
+  return -1;
+}
+
+/* ---------- armar cada base ---------- */
+function baseSorter(datos, nombre) {
+  if (datos.json) return datos.json.sorter || datos.json;
+  const filas = elegirHoja(datos.hojas, ['BASE SORTER', 'SORTER', 'BASE']);
+  const m = columnas(filas[0]);
+  const iRef = col(m, 'REFERENCIA', 'ENVIO', 'NUMERO');
+  const iCai = col(m, 'CAIDA SORTER', 'CAIDA', 'SALIDA');
+  const iCla = col(m, 'CLASIFICACION', 'CATEGORIA');
+  if (iRef < 0 || iCla < 0) throw new Error('No encontré las columnas REFERENCIA y CLASIFICACION en el archivo.');
+  const cl = [], idx = new Map(), it = [];
+  for (let i = 1; i < filas.length; i++) {
+    const r = ref(filas[i][iRef]); if (!r) continue;
+    const c = limpiar(filas[i][iCla]).toUpperCase(), ca = iCai >= 0 ? limpiar(filas[i][iCai]) : '';
+    const k = c + '|' + ca;
+    if (!idx.has(k)) { idx.set(k, cl.length); cl.push([c, ca]); }
+    it.push([r, idx.get(k)]);
+  }
+  if (!it.length) throw new Error('El archivo del sorter no trae filas con referencia.');
+  return { cl, it, fecha: nombre };
+}
+
+function baseBodega(datos, nombre, modo) {
+  if (datos.json) return datos.json[modo] || datos.json;
+  const filas = elegirHoja(datos.hojas, ['PARA DESPACHO', 'DESPACHO', 'BASE', 'HOJA']);
+  const m = columnas(filas[0]);
+  const iEnv = col(m, 'ENVIO', 'NUMERO', 'REFERENCIA');
+  const iUbi = col(m, 'UBICACION', 'POSICION');
+  const iFec = col(m, 'FECHA INGRESO', 'FECHAREGISTRO', 'FECHA');
+  const iBod = col(m, 'NO BODEGA', 'NUMEROBODEGAJE', 'BODEGA', 'BODEGAJE');
+  const iEst = col(m, 'ESTADO FIVPS', 'OBSERVACIONES', 'OBSERVACION');
+  const iAcc = col(m, 'ACCION');
+  if (iEnv < 0 || iUbi < 0) throw new Error('No encontré las columnas de envío y ubicación.');
+  const ub = [], idx = new Map(), it = [];
+  for (let i = 1; i < filas.length; i++) {
+    const e = ref(filas[i][iEnv]); if (!e) continue;
+    const u = limpiar(filas[i][iUbi]).toUpperCase() || '(SIN UBICACION)';
+    if (!idx.has(u)) { idx.set(u, ub.length); ub.push(u); }
+    const acc = iAcc >= 0 ? (/DOMICILIO/i.test(limpiar(filas[i][iAcc])) ? 1 : 0) : 1;
+    it.push([e, idx.get(u), acc, iEst >= 0 ? limpiar(filas[i][iEst]).toUpperCase() : '', iBod >= 0 ? limpiar(filas[i][iBod]) : '']);
+  }
+  if (!it.length) throw new Error('El archivo no trae filas con número de envío.');
+  return { ub, it, fecha: nombre };
+}
+
+/* ---------- flujo ---------- */
+function revisar() {
+  const t = $('tipo').value;
+  const hay = t === 'sorter' ? $('fSorter').files.length : ($('fDespacho').files.length || $('fPlazos').files.length);
+  $('btn').disabled = !hay;
+  estado(hay ? 'Listo para generar el archivo.' : 'Carga el reporte del día.');
+}
+['tipo','fSorter','fDespacho','fPlazos'].forEach(id => {
+  $(id).addEventListener('input', revisar); $(id).addEventListener('change', revisar);
+});
+$('tipo').addEventListener('change', () => {
+  const s = $('tipo').value === 'sorter';
+  $('zonaSorter').hidden = !s; $('zonaBodega').hidden = s;
+});
+
+$('btn').addEventListener('click', async () => {
+  $('btn').disabled = true;
+  estado('Procesando el archivo, un momento...');
+  try {
+    const t = $('tipo').value;
+    let datos, resumen;
+    if (t === 'sorter') {
+      const f = $('fSorter').files[0];
+      const b = baseSorter(await leerTabla(f), f.name.replace(/\.[^.]+$/, ''));
+      datos = { sorter: b };
+      resumen = '<b>' + b.it.length.toLocaleString('es-CL') + '</b> referencias · ' + b.cl.length + ' clasificaciones';
+    } else {
+      datos = {}; resumen = '';
+      if ($('fDespacho').files.length) {
+        const f = $('fDespacho').files[0];
+        const b = baseBodega(await leerTabla(f), f.name.replace(/\.[^.]+$/, ''), 'despacho');
+        datos.despacho = b;
+        resumen += '<b>' + b.it.length.toLocaleString('es-CL') + '</b> envíos de despacho · ' + b.ub.length + ' ubicaciones<br>';
+      }
+      if ($('fPlazos').files.length) {
+        const f = $('fPlazos').files[0];
+        const b = baseBodega(await leerTabla(f), f.name.replace(/\.[^.]+$/, ''), 'plazos');
+        b.it.forEach(x => x[2] = 1);
+        datos.plazos = b;
+        resumen += '<b>' + b.it.length.toLocaleString('es-CL') + '</b> envíos con plazo cumplido · ' + b.ub.length + ' ubicaciones';
+      }
+    }
+    datos.creado = new Date().toISOString();
+    const txt = JSON.stringify(datos);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([txt], { type:'application/json' }));
+    a.download = 'base.json';
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    estado('Archivo <b>base.json</b> descargado (' + (txt.length / 1048576).toFixed(1) + ' MB).<br>' + resumen + '<br>Ahora súbelo al repositorio.');
+  } catch (e) {
+    estado(e.message || 'No se pudo generar el archivo.', true);
+  }
+  $('btn').disabled = false;
+});
+revisar();
+</script>
+</body>
+</html>

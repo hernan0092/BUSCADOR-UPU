@@ -80,9 +80,25 @@ td.vacio{text-align:center;color:var(--tenue);font-size:13px}
 .acciones .destacado{background:var(--marca);border-color:var(--marca);color:#fff}
 .aviso{font-size:12px;line-height:1.55;color:var(--tenue);margin-top:10px}
 button:focus-visible,input:focus-visible{outline:2px solid var(--marca);outline-offset:2px}
+#cerco{position:fixed;inset:0;z-index:50;background:var(--marca);color:#fff;display:flex;align-items:center;
+  justify-content:center;text-align:center;padding:32px max(24px,env(safe-area-inset-left,0px))}
+#cerco .cercoTitulo{font-size:30px;font-weight:700;line-height:1.1;margin:0 0 10px}
+#cerco .cercoNota{font-size:14.5px;line-height:1.55;margin:0 0 22px;opacity:.9}
+#cerco button{font:700 12px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;padding:13px 24px;
+  border:1px solid rgba(255,255,255,.6);background:transparent;color:#fff;border-radius:3px;width:auto}
+#cerco code{display:block;font-family:var(--mono);font-size:13px;background:rgba(0,0,0,.25);
+  padding:10px;border-radius:3px;margin-bottom:18px;word-break:break-all}
 </style>
 </head>
 <body>
+
+<div id="cerco" hidden>
+  <div>
+    <p class="cercoTitulo" id="cercoTitulo">Verificando ubicación</p>
+    <p class="cercoNota" id="cercoNota">Un momento, estamos ubicando el teléfono.</p>
+    <button type="button" id="btnReintentar">Reintentar</button>
+  </div>
+</div>
 
 <header>
   <h1>Sorter · Preselectividad</h1>
@@ -109,8 +125,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--marca);outline-
 
 <div class="acciones">
   <button type="button" id="btnCamara" class="destacado">Usar cámara</button>
-  <label class="acc" for="archivo">Cargar base</label>
-  <input id="archivo" type="file" accept=".json,.csv,.txt" hidden>
+  <button type="button" id="btnActualizar">Actualizar base</button>
   <button type="button" id="btnSonido">Sonido: sí</button>
 </div>
 
@@ -120,12 +135,10 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--marca);outline-
   <tbody id="tablaResumen"><tr><td class="vacio" colspan="3">Todavía no hay escaneos</td></tr></tbody>
 </table>
 
-<h2>Cierre</h2>
 <div class="acciones">
-  <button type="button" id="btnReporte" class="destacado">Descargar reporte</button>
-  <button type="button" id="btnReiniciar">Borrar lo escaneado</button>
+  <button type="button" id="btnReiniciar">Borrar el conteo</button>
 </div>
-<p class="aviso">El reporte sale en CSV con la hora, la referencia, la clasificación y la caída de sorter de cada envío, incluidas las referencias que no estaban en la base.</p>
+<p class="aviso" id="pieInfo">La base se actualiza sola cada vez que abres el buscador, y queda guardada en el teléfono para trabajar sin señal.</p>
 
 <script>
 'use strict';
@@ -228,7 +241,7 @@ function buscar(entrada) {
   $('codigo').value = '';
   if (!flujo) $('codigo').focus();
   if (!cod) return;
-  if (!base) { mostrar('nulo', 'Falta la base', 'Pulsa Cargar base y elige el archivo del sorter.'); alarma('nulo'); return; }
+  if (!base) { mostrar('nulo', 'Falta la base', 'Pulsa Actualizar base para descargar la del día.'); alarma('nulo'); return; }
 
   const ahora = new Date();
   const i = mapa.get(cod);
@@ -283,42 +296,75 @@ async function leer() {
   setTimeout(() => requestAnimationFrame(leer), 180);
 }
 
-/* ---------- carga de la base ---------- */
-function csv(txt) {
-  const li = txt.trim().split(/\r?\n/); if (li.length < 2) return null;
-  const sep = (li[0].match(/;/g) || []).length > (li[0].match(/,/g) || []).length ? ';' : ',';
-  const cl = [], idx = new Map(), it = [];
-  for (let i = 1; i < li.length; i++) {
-    const c = li[i].split(sep).map(s => s.trim().replace(/^"|"$/g, ''));
-    const ref = normalizar(c[0]); if (!ref) continue;
-    const caida = c[1] || '', clase = (c[2] || c[1] || '').toUpperCase();
-    const k = clase + '|' + caida;
-    if (!idx.has(k)) { idx.set(k, cl.length); cl.push([clase, caida]); }
-    it.push([ref, idx.get(k)]);
+/* ---------- base publicada en el repositorio ---------- */
+async function bajarBase(aviso) {
+  if (aviso) mostrar(null, 'Actualizando base', 'Descargando la base publicada...');
+  let datos;
+  try {
+    const res = await fetch('./base.json?t=' + Date.now(), { cache:'no-store' });
+    if (!res.ok) throw new Error('404');
+    datos = await res.json();
+  } catch (e) {
+    if (aviso) mostrar('nulo', 'No se pudo actualizar', base ? 'Sigues trabajando con la base que ya tiene el teléfono.' : 'Todavía no hay base publicada, o el teléfono está sin señal.', '', '');
+    return false;
   }
-  return it.length ? { cl, it } : null;
-}
-async function cargarTexto(txt, nombre) {
-  let d = null;
-  try { const j = JSON.parse(txt); d = j.sorter || j; } catch (e) { d = csv(txt); }
-  if (!d || !d.it) { mostrar('nulo', 'Archivo no reconocido', 'Usa el .json del sorter o un CSV con referencia, caída y clasificación.'); return; }
-  if (!d.fecha) d.fecha = nombre.replace(/\.(json|csv|txt)$/i, '');
+  const d = datos.sorter || datos;
+  if (!d || !d.it) { if (aviso) mostrar('nulo', 'Base no reconocida', 'El archivo publicado no trae la base del sorter.'); return false; }
+  const nueva = JSON.stringify(d.it.length) + '|' + (d.fecha || '');
   base = d; indexar(); await guardarBase(base); sello();
-  mostrar(null, 'Base cargada', base.it.length.toLocaleString('es-CL') + ' referencias listas para consultar.');
+  if (aviso) mostrar(null, 'Base actualizada', base.it.length.toLocaleString('es-CL') + ' referencias listas para consultar.');
+  return true;
 }
 
-/* ---------- reporte ---------- */
-function reporte() {
-  if (!registro.length) { mostrar('ojo', 'Nada que reportar', 'Todavía no hay referencias escaneadas.'); return; }
-  const filas = [['FECHA/HORA','REFERENCIA','CLASIFICACION','CAIDA SORTER']];
-  registro.forEach(r => filas.push([hora(new Date(r.t)), r.cod, r.cl, r.ca]));
-  const txt = '﻿' + filas.map(f => f.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(';')).join('\r\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([txt], { type:'text/csv;charset=utf-8' }));
-  a.download = 'reporte_sorter_' + new Date().toISOString().slice(0,16).replace(/[:T]/g,'-') + '.csv';
-  document.body.append(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-  mostrar(null, 'Reporte descargado', registro.length + ' escaneos guardados en el archivo CSV.');
+/* ---------- cerco de ubicación ---------- */
+const ZONA = { lat: -33.3850, lon: -70.7900, radio: 600 };   // centro de la planta y radio en metros
+const EXIGIR_UBICACION = true;                                // false deja usar el buscador en cualquier parte
+let vigilancia = null;
+
+function metros(a, b, c, d) {
+  const R = 6371000, g = Math.PI / 180;
+  const dl = (c - a) * g, dL = (d - b) * g;
+  const x = Math.sin(dl/2)**2 + Math.cos(a*g) * Math.cos(c*g) * Math.sin(dL/2)**2;
+  return Math.round(2 * R * Math.asin(Math.sqrt(x)));
+}
+function cerrar(titulo, nota, extra) {
+  const c = document.getElementById('cerco');
+  document.getElementById('cercoTitulo').textContent = titulo;
+  document.getElementById('cercoNota').innerHTML = nota + (extra || '');
+  c.hidden = false;
+}
+function abrir() { document.getElementById('cerco').hidden = true; }
+
+function vigilarUbicacion() {
+  const config = location.search.indexOf('config') >= 0;
+  if (!EXIGIR_UBICACION && !config) { abrir(); return; }
+  if (!navigator.geolocation) {
+    if (config) return;
+    cerrar('Sin ubicación', 'Este teléfono no entrega su ubicación, por lo tanto el buscador no se puede usar.');
+    return;
+  }
+  cerrar('Verificando ubicación', 'Un momento, estamos ubicando el teléfono.');
+  if (vigilancia !== null) navigator.geolocation.clearWatch(vigilancia);
+  vigilancia = navigator.geolocation.watchPosition(pos => {
+    const { latitude:la, longitude:lo, accuracy:pr } = pos.coords;
+    if (config) {
+      cerrar('Coordenadas de este punto',
+        'Pega estas tres líneas en index.html, en la línea que empieza con const ZONA:',
+        '<code>lat: ' + la.toFixed(5) + ',<br>lon: ' + lo.toFixed(5) + ',<br>radio: 600</code>' +
+        'Precisión actual: ' + Math.round(pr) + ' m');
+      return;
+    }
+    const d = metros(ZONA.lat, ZONA.lon, la, lo);
+    if (d - pr <= ZONA.radio) abrir();
+    else cerrar('Fuera de la planta',
+      'El buscador solo funciona dentro de la planta. Estás a unos ' + d.toLocaleString('es-CL') + ' metros.');
+  }, err => {
+    if (config) { cerrar('Sin señal de ubicación', 'No se pudo obtener la posición: ' + err.message); return; }
+    if (err.code === 1) cerrar('Falta el permiso de ubicación',
+      'El buscador necesita saber que estás en la planta. Autoriza la ubicación en el candado de la barra de direcciones y vuelve a intentar.');
+    else cerrar('Sin señal de ubicación',
+      'No se pudo ubicar el teléfono. Sal unos pasos al exterior o acércate a una ventana y reintenta.');
+  }, { enableHighAccuracy:true, maximumAge:30000, timeout:25000 });
 }
 
 /* ---------- eventos ---------- */
@@ -329,23 +375,16 @@ $('btnSonido').addEventListener('click', e => {
   sonido = !sonido; e.target.textContent = 'Sonido: ' + (sonido ? 'sí' : 'no');
   guardarLocal(); if (sonido) alarma('ok');
 });
-$('archivo').addEventListener('change', e => {
-  const f = e.target.files[0]; if (!f) return;
-  mostrar(null, 'Cargando base', 'Un momento, son miles de referencias.');
-  const fr = new FileReader();
-  fr.onload = () => cargarTexto(String(fr.result), f.name);
-  fr.readAsText(f, 'utf-8');
-  e.target.value = '';
-});
-$('btnReporte').addEventListener('click', reporte);
+$('btnActualizar').addEventListener('click', () => bajarBase(true));
 $('btnReiniciar').addEventListener('click', () => {
   if ($('clase').textContent !== 'Confirma el borrado') {
-    mostrar('ojo', 'Confirma el borrado', 'Vuelve a pulsar para borrar lo escaneado. La base se mantiene.');
+    mostrar('ojo', 'Confirma el borrado', 'Vuelve a pulsar para borrar el conteo. La base se mantiene.');
     return;
   }
   registro = []; guardarLocal(); pintarResumen();
-  mostrar(null, 'Registro borrado', 'Puedes empezar un turno nuevo.');
+  mostrar(null, 'Conteo borrado', 'Puedes empezar un turno nuevo.');
 });
+$('btnReintentar').addEventListener('click', vigilarUbicacion);
 
 (async function inicio() {
   try {
@@ -354,8 +393,11 @@ $('btnReiniciar').addEventListener('click', () => {
   } catch (e) {}
   $('btnSonido').textContent = 'Sonido: ' + (sonido ? 'sí' : 'no');
   pintarResumen();
+  vigilarUbicacion();
   const b = await leerBase();
   if (b && b.it) { base = b; indexar(); sello(); mostrar(null, 'Listo para escanear', 'Aprieta Usar cámara o escribe la referencia.'); }
+  const ok = await bajarBase(!b);
+  if (ok && b) mostrar(null, 'Listo para escanear', 'Base al día: ' + base.it.length.toLocaleString('es-CL') + ' referencias.');
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
 })();
 </script>
