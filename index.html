@@ -317,9 +317,24 @@ async function bajarBase(aviso) {
 }
 
 /* ---------- cerco de ubicación ---------- */
-const ZONA = { lat: -33.3850, lon: -70.7900, radio: 600 };   // centro de la planta y radio en metros
-const EXIGIR_UBICACION = true;                                // false deja usar el buscador en cualquier parte
+let ZONA = { lat: -33.3850, lon: -70.7900, radio: 600 };   // se reemplaza con lo que traiga zona.json
+let EXIGIR_UBICACION = true;
 let vigilancia = null;
+
+async function cargarZona() {
+  try {
+    const r = await fetch('./zona.json?t=' + Date.now(), { cache:'no-store' });
+    if (!r.ok) return;
+    const z = await r.json();
+    if (typeof z.lat === 'number' && typeof z.lon === 'number') {
+      ZONA = { lat: z.lat, lon: z.lon, radio: z.radio || 600 };
+      try { localStorage.setItem('zona', JSON.stringify(ZONA)); } catch (e) {}
+    }
+    if (z.exigir === false) EXIGIR_UBICACION = false;
+  } catch (e) {
+    try { const g = localStorage.getItem('zona'); if (g) ZONA = JSON.parse(g); } catch (e2) {}
+  }
+}
 
 function metros(a, b, c, d) {
   const R = 6371000, g = Math.PI / 180;
@@ -349,9 +364,9 @@ function vigilarUbicacion() {
     const { latitude:la, longitude:lo, accuracy:pr } = pos.coords;
     if (config) {
       cerrar('Coordenadas de este punto',
-        'Pega estas tres líneas en index.html, en la línea que empieza con const ZONA:',
-        '<code>lat: ' + la.toFixed(5) + ',<br>lon: ' + lo.toFixed(5) + ',<br>radio: 600</code>' +
-        'Precisión actual: ' + Math.round(pr) + ' m');
+        'Crea el archivo <b>zona.json</b> en el repositorio con este contenido:',
+        '<code>{"lat": ' + la.toFixed(5) + ', "lon": ' + lo.toFixed(5) + ', "radio": 600}</code>' +
+        'Precisión del teléfono aquí: ' + Math.round(pr) + ' m. Si es mayor a 300, sube el radio.');
       return;
     }
     const d = metros(ZONA.lat, ZONA.lon, la, lo);
@@ -393,6 +408,7 @@ $('btnReintentar').addEventListener('click', vigilarUbicacion);
   } catch (e) {}
   $('btnSonido').textContent = 'Sonido: ' + (sonido ? 'sí' : 'no');
   pintarResumen();
+  await cargarZona();
   vigilarUbicacion();
   const b = await leerBase();
   if (b && b.it) { base = b; indexar(); sello(); mostrar(null, 'Listo para escanear', 'Aprieta Usar cámara o escribe la referencia.'); }
