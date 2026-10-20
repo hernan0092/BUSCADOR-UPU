@@ -11,7 +11,7 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
-  if (e.request.url.includes('base.json') || e.request.url.includes('zona.json')) return;   // la base siempre se pide a la red
+  if (e.request.url.includes('base.json') || e.request.url.includes('zona.json') || e.request.url.includes('version.json')) return;   // la base siempre se pide a la red
   e.respondWith(
     caches.match(e.request).then(hit => hit || fetch(e.request).then(res => {
       const copia = res.clone();

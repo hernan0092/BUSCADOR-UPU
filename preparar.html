@@ -85,9 +85,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
   <legend>2 · Publicar</legend>
   <ol>
     <li>Entra al repositorio que corresponda y pulsa <b>Add file → Upload files</b>.</li>
-    <li>Sube el archivo <code>base.json</code> que acabas de descargar. Si ya existe, GitHub lo reemplaza.</li>
+    <li>Sube <code>base.json</code> y <code>version.json</code>. Si ya existen, GitHub los reemplaza.</li>
     <li><b>Commit changes</b>. En uno o dos minutos queda publicado.</li>
-    <li>Los operadores no hacen nada: la app toma la base nueva sola al abrirse.</li>
+    <li>Los operadores no hacen nada: al abrir el buscador ve que cambió la versión y descarga la base nueva una sola vez.</li>
   </ol>
 </fieldset>
 
@@ -221,8 +221,11 @@ $('btn').addEventListener('click', async () => {
     if (t === 'sorter') {
       const f = $('fSorter').files[0];
       const b = baseSorter(await leerTabla(f), f.name.replace(/\.[^.]+$/, ''));
-      datos = { sorter: b };
-      resumen = '<b>' + b.it.length.toLocaleString('es-CL') + '</b> referencias · ' + b.cl.length + ' clasificaciones';
+      const n = b.it.length;
+      const g = b.cl.map(() => []);
+      b.it.forEach(x => g[x[1]].push(x[0]));
+      datos = { sorter: { cl: b.cl, g: g.map(a => a.join(',')), fecha: b.fecha } };
+      resumen = '<b>' + n.toLocaleString('es-CL') + '</b> referencias · ' + b.cl.length + ' clasificaciones';
     } else {
       datos = {}; resumen = '';
       if ($('fDespacho').files.length) {
@@ -239,14 +242,19 @@ $('btn').addEventListener('click', async () => {
         resumen += '<b>' + b.it.length.toLocaleString('es-CL') + '</b> envíos con plazo cumplido · ' + b.ub.length + ' ubicaciones';
       }
     }
-    datos.creado = new Date().toISOString();
+    datos.version = new Date().toISOString();
     const txt = JSON.stringify(datos);
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([txt], { type:'application/json' }));
     a.download = 'base.json';
     document.body.append(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    estado('Archivo <b>base.json</b> descargado (' + (txt.length / 1048576).toFixed(1) + ' MB).<br>' + resumen + '<br>Ahora súbelo al repositorio.');
+    const v = document.createElement('a');
+    v.href = URL.createObjectURL(new Blob([JSON.stringify({ version: datos.version })], { type:'application/json' }));
+    v.download = 'version.json';
+    document.body.append(v); v.click(); v.remove();
+    setTimeout(() => URL.revokeObjectURL(v.href), 5000);
+    estado('Descargados <b>base.json</b> (' + (txt.length / 1048576).toFixed(1) + ' MB) y <b>version.json</b>.<br>' + resumen + '<br>Sube los dos al repositorio: el chico es el que avisa a los teléfonos que hay base nueva.');
   } catch (e) {
     estado(e.message || 'No se pudo generar el archivo.', true);
   }

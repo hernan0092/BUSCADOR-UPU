@@ -138,13 +138,39 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--marca);outline-
 <div class="acciones">
   <button type="button" id="btnReiniciar">Borrar el conteo</button>
 </div>
-<p class="aviso" id="pieInfo">La base se actualiza sola cada vez que abres el buscador, y queda guardada en el teléfono para trabajar sin señal.</p>
+<p class="aviso" id="pieInfo">Al abrir, el buscador revisa si hay base nueva. Si no la hay, no descarga nada y trabaja con la que ya tiene guardada el teléfono.</p>
 
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
 let base = null, mapa = null, registro = [], sonido = true;
 let flujo = null, detector = null, ocupado = false, ultimo = { cod:'', t:0 };
+
+/* ---------- voz ---------- */
+const PRONUNCIA = { FIVPS:'fivps', LIBRE:'libre', C2C:'ce dos ce', CARTA:'carta',
+                    AFORO:'aforo', RECLAMO:'reclamo' };
+let vozES = null;
+function prepararVoz() {
+  try {
+    const vs = speechSynthesis.getVoices();
+    vozES = vs.find(v => /es[-_]CL/i.test(v.lang)) || vs.find(v => /^es/i.test(v.lang)) || null;
+  } catch (e) {}
+}
+function hablar(texto) {
+  if (!sonido) return false;
+  try {
+    if (!('speechSynthesis' in window)) return false;
+    if (!vozES) prepararVoz();
+    if (!vozES && !speechSynthesis.getVoices().length) return false;   // sin voz instalada: quedan los pitidos
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(texto);
+    u.lang = vozES ? vozES.lang : 'es-CL';
+    if (vozES) u.voice = vozES;
+    u.rate = 1.05; u.pitch = 1;
+    speechSynthesis.speak(u);
+    return true;
+  } catch (e) { return false; }
+}
 
 const TONOS = { FIVPS:'fivps', LIBRE:'libre', C2C:'c2c', AFORO:'aforo', CARTA:'carta', RECLAMO:'otro' };
 const normalizar = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -188,11 +214,15 @@ function pitido(hz, ms, retraso) {
     osc.start(t0); osc.stop(t0 + ms / 1000 + 0.02);
   } catch (e) {}
 }
-function alarma(tipo) {
+function alarma(tipo, decir) {
   const v = n => { try { navigator.vibrate && navigator.vibrate(n); } catch (e) {} };
-  if (tipo === 'ok')   { pitido(1200,110,0); pitido(1550,150,130); v(80); }
-  if (tipo === 'ojo')  { pitido(620,200,0);  pitido(620,200,240);  v([110,70,110]); }
-  if (tipo === 'nulo') { pitido(300,420,0);  v(330); }
+  if (tipo === 'ok')   v(80);
+  if (tipo === 'ojo')  v([110,70,110]);
+  if (tipo === 'nulo') v(330);
+  if (decir && hablar(decir)) return;          // la voz reemplaza al pitido
+  if (tipo === 'ok')   { pitido(1200,110,0); pitido(1550,150,130); }
+  if (tipo === 'ojo')  { pitido(620,200,0);  pitido(620,200,240); }
+  if (tipo === 'nulo') { pitido(300,420,0); }
 }
 
 /* ---------- pantalla ---------- */
@@ -227,14 +257,24 @@ function pintarResumen() {
 }
 
 function sello() {
-  $('sello').textContent = base ? base.it.length.toLocaleString('es-CL') + ' referencias · ' + (base.fecha || 'base cargada') : 'sin base cargada';
+  $('sello').textContent = base ? cuantas().toLocaleString('es-CL') + ' referencias · ' + (base.fecha || 'base cargada') : 'sin base cargada';
 }
 
 /* ---------- búsqueda ---------- */
 function indexar() {
   mapa = new Map();
-  base.it.forEach(x => { if (!mapa.has(x[0])) mapa.set(x[0], x[1]); });
+  if (base.g) {                       // formato compacto: una cadena de referencias por clasificación
+    base.g.forEach((cadena, i) => {
+      if (!cadena) return;
+      cadena.split(',').forEach(r => { if (r && !mapa.has(r)) mapa.set(r, i); });
+    });
+    base.total = mapa.size;
+  } else {
+    base.it.forEach(x => { if (!mapa.has(x[0])) mapa.set(x[0], x[1]); });
+    base.total = base.it.length;
+  }
 }
+function cuantas() { return (base && (base.total || (base.it ? base.it.length : 0))) || 0; }
 
 function buscar(entrada) {
   const cod = normalizar(entrada);
@@ -246,16 +286,18 @@ function buscar(entrada) {
   const ahora = new Date();
   const i = mapa.get(cod);
 
+  const clase = i === undefined ? 'NO ESTA EN LA BASE' : base.cl[i][0];
+  const caida = i === undefined ? '' : base.cl[i][1];
+
   if (i === undefined) {
-    registro.push({ cod, cl:'NO ESTA EN LA BASE', ca:'', t: ahora.toISOString() });
+    registro.push({ cod, cl: clase, ca:'', t: ahora.toISOString() });
     mostrar('nulo', 'No está en la base', 'Esta referencia no figura en la base del sorter.', '', cod);
-    alarma('nulo'); guardarLocal(); pintarResumen(); return;
+    alarma('nulo', 'no está en la base'); guardarLocal(); pintarResumen(); return;
   }
 
-  const [clase, caida] = base.cl[i];
   registro.push({ cod, cl: clase, ca: caida, t: ahora.toISOString() });
   mostrar(TONOS[clase] || 'otro', clase, '', caida, cod);
-  alarma(clase === 'RECLAMO' || clase === 'AFORO' ? 'ojo' : 'ok');
+  alarma(clase === 'RECLAMO' || clase === 'AFORO' ? 'ojo' : 'ok', PRONUNCIA[clase] || clase.toLowerCase());
   guardarLocal(); pintarResumen();
 }
 
@@ -297,8 +339,25 @@ async function leer() {
 }
 
 /* ---------- base publicada en el repositorio ---------- */
-async function bajarBase(aviso) {
-  if (aviso) mostrar(null, 'Actualizando base', 'Descargando la base publicada...');
+async function versionPublicada() {
+  try {
+    const r = await fetch('./version.json?t=' + Date.now(), { cache:'no-store' });
+    if (!r.ok) return null;
+    const v = await r.json();
+    return v.version || v.creado || null;
+  } catch (e) { return null; }
+}
+function versionLocal() {
+  try { return localStorage.getItem('sorter.version'); } catch (e) { return null; }
+}
+
+async function bajarBase(aviso, forzar) {
+  const pub = await versionPublicada();
+  if (!forzar && base && pub && pub === versionLocal()) {
+    if (aviso) mostrar(null, 'Base al día', cuantas().toLocaleString('es-CL') + ' referencias. No hubo que descargar nada.');
+    return true;
+  }
+  if (aviso || base) mostrar(null, 'Actualizando base', 'Descargando la base nueva, puede demorar con poca señal...');
   let datos;
   try {
     const res = await fetch('./base.json?t=' + Date.now(), { cache:'no-store' });
@@ -309,10 +368,10 @@ async function bajarBase(aviso) {
     return false;
   }
   const d = datos.sorter || datos;
-  if (!d || !d.it) { if (aviso) mostrar('nulo', 'Base no reconocida', 'El archivo publicado no trae la base del sorter.'); return false; }
-  const nueva = JSON.stringify(d.it.length) + '|' + (d.fecha || '');
+  if (!d || !(d.it || d.g)) { if (aviso) mostrar('nulo', 'Base no reconocida', 'El archivo publicado no trae la base del sorter.'); return false; }
   base = d; indexar(); await guardarBase(base); sello();
-  if (aviso) mostrar(null, 'Base actualizada', base.it.length.toLocaleString('es-CL') + ' referencias listas para consultar.');
+  try { localStorage.setItem('sorter.version', (datos.version || datos.creado || d.fecha || String(Date.now()))); } catch (e) {}
+  mostrar(null, 'Base actualizada', cuantas().toLocaleString('es-CL') + ' referencias listas para consultar.');
   return true;
 }
 
@@ -388,9 +447,10 @@ $('codigo').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preven
 $('btnCamara').addEventListener('click', abrirCamara);
 $('btnSonido').addEventListener('click', e => {
   sonido = !sonido; e.target.textContent = 'Sonido: ' + (sonido ? 'sí' : 'no');
-  guardarLocal(); if (sonido) alarma('ok');
+  guardarLocal();
+  if (sonido) { prepararVoz(); alarma('ok', 'sonido activado'); }
 });
-$('btnActualizar').addEventListener('click', () => bajarBase(true));
+$('btnActualizar').addEventListener('click', () => bajarBase(true, true));
 $('btnReiniciar').addEventListener('click', () => {
   if ($('clase').textContent !== 'Confirma el borrado') {
     mostrar('ojo', 'Confirma el borrado', 'Vuelve a pulsar para borrar el conteo. La base se mantiene.');
@@ -407,13 +467,15 @@ $('btnReintentar').addEventListener('click', vigilarUbicacion);
     sonido = localStorage.getItem('sorter.sonido') !== '0';
   } catch (e) {}
   $('btnSonido').textContent = 'Sonido: ' + (sonido ? 'sí' : 'no');
+  prepararVoz();
+  try { speechSynthesis.addEventListener('voiceschanged', prepararVoz); } catch (e) {}
   pintarResumen();
   await cargarZona();
   vigilarUbicacion();
   const b = await leerBase();
-  if (b && b.it) { base = b; indexar(); sello(); mostrar(null, 'Listo para escanear', 'Aprieta Usar cámara o escribe la referencia.'); }
-  const ok = await bajarBase(!b);
-  if (ok && b) mostrar(null, 'Listo para escanear', 'Base al día: ' + base.it.length.toLocaleString('es-CL') + ' referencias.');
+  if (b && (b.it || b.g)) { base = b; indexar(); sello(); mostrar(null, 'Listo para escanear', 'Aprieta Usar cámara o escribe la referencia.'); }
+  const ok = await bajarBase(!b, false);
+  if (ok && b) mostrar(null, 'Listo para escanear', 'Base al día: ' + cuantas().toLocaleString('es-CL') + ' referencias.');
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
 })();
 </script>
