@@ -144,9 +144,14 @@ function columnas(fila) {
   return m;
 }
 function col(map, ...alternativas) {
+  for (const a of alternativas) { const k = clave(a); if (k in map) return map[k]; }
   for (const a of alternativas) {
     const k = clave(a);
-    if (k in map) return map[k];
+    const hit = Object.keys(map).find(x => x.startsWith(k));
+    if (hit) return map[hit];
+  }
+  for (const a of alternativas) {
+    const k = clave(a);
     const hit = Object.keys(map).find(x => x.includes(k));
     if (hit) return map[hit];
   }

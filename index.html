@@ -39,6 +39,34 @@ header span{font-size:11px;color:var(--tenue);font-variant-numeric:tabular-nums;
 #mira{position:absolute;inset:22% 8%;border:3px solid rgba(255,255,255,.85);border-radius:6px;
   box-shadow:0 0 0 2000px rgba(0,0,0,.3)}
 
+#camara[data-tono]{box-shadow:inset 0 0 0 7px var(--marcoColor)}
+#camara[data-tono="dom"],#camara[data-tono="ok"]{--marcoColor:#0c7a43}
+#camara[data-tono="plazo"]{--marcoColor:#0b6e8f}
+#camara[data-tono="listo"]{--marcoColor:#13505b}
+#camara[data-tono="alto"],#camara[data-tono="ojo"]{--marcoColor:#b45309}
+#camara[data-tono="stop"],#camara[data-tono="nulo"]{--marcoColor:#a4161a}
+#camara[data-tono="fivps"]{--marcoColor:#7f1d1d}
+#camara[data-tono="libre"]{--marcoColor:#d98b6a}
+#camara[data-tono="c2c"]{--marcoColor:#c75146}
+#camara[data-tono="aforo"]{--marcoColor:#5c1a2e}
+#camara[data-tono="carta"],#camara[data-tono="otro"]{--marcoColor:#a4161a}
+#camara[data-tono] #mira{border-color:var(--marcoColor)}
+
+#navAviso{margin-top:12px;border:2px solid var(--stop);border-radius:4px;background:var(--panel);
+  padding:14px;display:none;flex-direction:column;gap:8px}
+#navAviso.ver{display:flex}
+#navAviso b{font:700 15px/1.3 var(--display);color:var(--stop)}
+#navAviso p{margin:0;font-size:13px;line-height:1.5}
+#navAviso .dir{font:600 12.5px/1.4 var(--mono);background:var(--fondo);padding:8px;border-radius:3px;
+  word-break:break-all;border:1px solid var(--linea)}
+#navAviso button{align-self:flex-start;font:600 12px/1 var(--display);letter-spacing:.05em;text-transform:uppercase;
+  padding:10px 14px;border:none;border-radius:3px;background:var(--marca);color:#fff;cursor:pointer}
+#controlesCam{position:absolute;right:8px;bottom:8px;display:flex;gap:6px;align-items:center}
+#controlesCam button{font:700 13px/1 var(--display);padding:9px 12px;border-radius:3px;border:none;
+  background:rgba(0,0,0,.6);color:#fff;cursor:pointer}
+#controlesCam button[data-on="1"]{background:#f0c040;color:#1c1b18}
+#zoomNivel{font:600 12px/1 var(--mono);color:#fff;background:rgba(0,0,0,.6);padding:9px 8px;border-radius:3px}
+
 .captura{display:flex;gap:8px;margin-top:12px}
 #codigo{flex:1;min-width:0;font:600 19px/1 var(--mono);letter-spacing:.04em;padding:14px 12px;
   border:2px solid var(--marca);border-radius:3px;background:var(--panel);color:var(--tinta);text-transform:uppercase}
@@ -80,6 +108,15 @@ td.vacio{text-align:center;color:var(--tenue);font-size:13px}
 .acciones .destacado{background:var(--marca);border-color:var(--marca);color:#fff}
 .aviso{font-size:12px;line-height:1.55;color:var(--tenue);margin-top:10px}
 button:focus-visible,input:focus-visible{outline:2px solid var(--marca);outline-offset:2px}
+#diag{margin-top:10px;border:1px solid var(--linea);border-radius:4px;background:var(--panel);padding:10px 12px}
+#diag h3{font:700 10px/1.4 var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--tenue);margin:0 0 6px;
+  display:flex;justify-content:space-between}
+#diag ol{list-style:none;margin:0;padding:0;font:500 11.5px/1.5 var(--mono);max-height:190px;overflow-y:auto}
+#diag li{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--linea);padding:3px 0}
+#diag li:last-child{border-bottom:none}
+#diag .si{color:#0c7a43;font-weight:600}
+#diag .no{color:#a4161a;font-weight:600}
+#diag .fmt{color:var(--tenue);font-size:10.5px}
 #cerco{position:fixed;inset:0;z-index:50;background:var(--marca);color:#fff;display:flex;align-items:center;
   justify-content:center;text-align:center;padding:32px max(24px,env(safe-area-inset-left,0px))}
 #cerco .cercoTitulo{font-size:30px;font-weight:700;line-height:1.1;margin:0 0 10px}
@@ -108,6 +145,22 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--marca);outline-
 <div id="camara" hidden>
   <video id="video" playsinline muted></video>
   <div id="mira"></div>
+  <div id="controlesCam">
+    <button type="button" id="btnLinterna" hidden>Linterna</button>
+    <span id="zoomCaja" hidden>
+      <button type="button" id="btnZoomMenos">−</button>
+      <span id="zoomNivel">2.0×</span>
+      <button type="button" id="btnZoomMas">+</button>
+    </span>
+  </div>
+</div>
+
+
+<div id="navAviso">
+  <b>Este navegador no puede leer códigos</b>
+  <p>La cámara solo funciona en <b>Chrome</b>. Abre esta dirección en Chrome para escanear. Mientras tanto, puedes escribir el número a mano y el buscador responde igual.</p>
+  <span class="dir" id="navDir"></span>
+  <button type="button" id="navCopiar">Copiar dirección</button>
 </div>
 
 <div class="captura">
@@ -141,6 +194,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--marca);outline-
 </div>
 <p class="aviso" id="pieInfo">El reporte sale en CSV con la hora, la referencia, la clasificación y la caída de sorter de cada escaneo. Al abrir, el buscador revisa si hay base nueva. Si no la hay, no descarga nada y trabaja con la que ya tiene guardada el teléfono.</p>
 
+<div id="diag" hidden>
+  <h3><span>Diagnóstico de lectura</span><span id="diagFps">0 lecturas/s</span></h3>
+  <ol id="diagLista"></ol>
+</div>
+
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
@@ -149,7 +207,7 @@ let flujo = null, detector = null, ocupado = false, ultimo = { cod:'', t:0 };
 
 /* ---------- voz ---------- */
 let PRONUNCIA = { FIVPS:'fivps', LIBRE:'libre', C2C:'situsi', CARTA:'carta',
-                  AFORO:'aforo', RECLAMO:'reclamo', 'NO ESTA EN LA BASE':'no está en la base' };
+                  AFORO:'aforo', RECLAMO:'reclamo', 'FUERA DE BASE':'fuera de base' };
 async function cargarVoz() {        // voz.json permite afinar cómo suena cada clasificación
   try {
     const r = await fetch('./voz.json?t=' + Date.now(), { cache:'no-store' });
@@ -238,6 +296,12 @@ function alarma(tipo, decir) {
 }
 
 /* ---------- pantalla ---------- */
+function pintarBanda(tono) {
+  const c = document.getElementById('camara');
+  if (!c) return;
+  if (!flujo) { delete c.dataset.tono; return; }
+  if (tono) c.dataset.tono = tono; else delete c.dataset.tono;
+}
 function mostrar(tono, clase, nota, caida, ref) {
   const v = $('veredicto');
   if (tono) v.dataset.tono = tono; else delete v.dataset.tono;
@@ -245,6 +309,7 @@ function mostrar(tono, clase, nota, caida, ref) {
   $('nota').textContent = nota || ''; $('nota').hidden = !nota;
   $('caida').textContent = caida || ''; $('caida').hidden = !caida;
   $('ref').textContent = ref || ''; $('ref').hidden = !ref;
+  pintarBanda(tono);
 }
 
 function pintarResumen() {
@@ -298,13 +363,13 @@ function buscar(entrada) {
   const ahora = new Date();
   const i = mapa.get(cod);
 
-  const clase = i === undefined ? 'NO ESTA EN LA BASE' : base.cl[i][0];
+  const clase = i === undefined ? 'FUERA DE BASE' : base.cl[i][0];
   const caida = i === undefined ? '' : base.cl[i][1];
 
   if (i === undefined) {
     registro.push({ cod, cl: clase, ca:'', t: ahora.toISOString() });
-    mostrar('nulo', 'No está en la base', 'Esta referencia no figura en la base del sorter.', '', cod);
-    alarma('nulo', PRONUNCIA['NO ESTA EN LA BASE'] || 'no está en la base');
+    mostrar('nulo', 'FUERA DE BASE', 'Esta referencia no está en la base del sorter.', '', cod);
+    alarma('nulo', PRONUNCIA['FUERA DE BASE'] || PRONUNCIA['NO ESTA EN LA BASE'] || 'fuera de base');
     guardarLocal(); pintarResumen(); return;
   }
 
@@ -314,18 +379,100 @@ function buscar(entrada) {
   guardarLocal(); pintarResumen();
 }
 
+
+/* ---------- diagnóstico (solo con ?diag en la dirección) ---------- */
+const DIAG = location.search.indexOf('diag') >= 0;
+let diagIntentos = 0, diagDetecciones = [];
+function diagTic() {
+  if (!DIAG) return;
+  diagIntentos++;
+}
+function diagAnota(valor, formato, enBase) {
+  if (!DIAG) return;
+  const li = document.createElement('li');
+  const a = document.createElement('span');
+  a.innerHTML = '<span class="' + (enBase ? 'si' : 'no') + '">' + (enBase ? '✓' : '✗') + '</span> ' + valor;
+  const b = document.createElement('span');
+  b.className = 'fmt'; b.textContent = formato || '?';
+  li.append(a, b);
+  const ol = document.getElementById('diagLista');
+  ol.prepend(li);
+  while (ol.children.length > 12) ol.lastChild.remove();
+}
+if (DIAG) {
+  setInterval(() => {
+    const d = document.getElementById('diagFps');
+    if (d) d.textContent = diagIntentos + ' lecturas/s';
+    diagIntentos = 0;
+  }, 1000);
+}
+
+
+/* ---------- aviso de navegador sin lector ---------- */
+function revisarNavegador() {
+  if ('BarcodeDetector' in window) return;
+  const c = document.getElementById('navAviso');
+  const movil = navigator.maxTouchPoints > 1 || /Android|iPhone|iPad/i.test(navigator.userAgent);
+  if (!movil) {
+    c.querySelector('b').textContent = 'Desde el computador no se puede escanear';
+    c.querySelector('p').innerHTML = 'La cámara del buscador funciona en <b>Chrome en el teléfono</b>. ' +
+      'Acá puedes escribir el número a mano y el buscador responde igual.';
+  }
+  document.getElementById('navDir').textContent = location.origin + location.pathname;
+  c.classList.add('ver');
+  document.getElementById('navCopiar').addEventListener('click', async e => {
+    try {
+      await navigator.clipboard.writeText(location.origin + location.pathname);
+      e.target.textContent = 'Dirección copiada';
+    } catch (err) {
+      const r = document.createRange();
+      r.selectNodeContents(document.getElementById('navDir'));
+      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      e.target.textContent = 'Copia el texto marcado';
+    }
+  });
+}
+
 /* ---------- cámara ---------- */
+let pista = null, lienzo = null, ctx2d = null, zoomActual = 1;
+
+function soporta(nombre) {
+  try { return pista && (pista.getCapabilities() || {})[nombre]; } catch (e) { return null; }
+}
+async function aplicar(ajuste) {
+  try { await pista.applyConstraints({ advanced: [ajuste] }); return true; } catch (e) { return false; }
+}
 async function abrirCamara() {
   if (flujo) { cerrarCamara(); return; }
   if (!('BarcodeDetector' in window)) {
-    mostrar('nulo', 'Cámara no disponible', 'Este navegador no trae lector de códigos. Usa Chrome en Android, un escáner USB con adaptador OTG, o escribe la referencia.');
+    mostrar('nulo', 'Cámara no disponible',
+      'Este navegador no trae lector de códigos. Usa Chrome en Android, un escáner USB con adaptador OTG, o escribe la referencia.');
     return;
   }
   try {
-    detector = detector || new window.BarcodeDetector({ formats:['code_128','code_39','ean_13','qr_code','itf','codabar'] });
-    flujo = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment', width:{ ideal:1280 } } });
+    detector = detector || new window.BarcodeDetector({ formats:['code_128','code_39','itf','ean_13','qr_code'] });
+    flujo = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: 'environment' },
+        width:  { ideal: 1920 },
+        height: { ideal: 1080 },
+        advanced: [{ focusMode: 'continuous' }]
+      }
+    });
+    pista = flujo.getVideoTracks()[0];
+    await aplicar({ focusMode: 'continuous' });
+
+    const z = soporta('zoom');
+    if (z) {
+      zoomActual = Math.min(z.max, Math.max(z.min, 2));
+      await aplicar({ zoom: zoomActual });
+      $('zoomCaja').hidden = false;
+    }
+    $('btnLinterna').hidden = !soporta('torch');
+
     const v = $('video'); v.srcObject = flujo; await v.play();
     $('camara').hidden = false; $('btnCamara').textContent = 'Apagar cámara';
+    if (DIAG) $('diag').hidden = false;
     leer();
   } catch (e) {
     mostrar('nulo', 'No se pudo abrir la cámara', 'Revisa el permiso de cámara del navegador y vuelve a intentar.');
@@ -333,22 +480,57 @@ async function abrirCamara() {
 }
 function cerrarCamara() {
   if (flujo) flujo.getTracks().forEach(t => t.stop());
-  flujo = null; $('camara').hidden = true; $('btnCamara').textContent = 'Usar cámara';
+  flujo = null; pista = null;
+  $('camara').hidden = true; $('btnCamara').textContent = 'Usar cámara';
+  $('zoomCaja').hidden = true; $('btnLinterna').hidden = true;
+  $('btnLinterna').dataset.on = '';
 }
+async function cambiarZoom(paso) {
+  const z = soporta('zoom'); if (!z) return;
+  zoomActual = Math.min(z.max, Math.max(z.min, zoomActual + paso * (z.step || 0.5)));
+  await aplicar({ zoom: zoomActual });
+  $('zoomNivel').textContent = zoomActual.toFixed(1) + '×';
+}
+async function alternarLinterna() {
+  if (!soporta('torch')) return;
+  const on = $('btnLinterna').dataset.on === '1';
+  if (await aplicar({ torch: !on })) {
+    $('btnLinterna').dataset.on = on ? '' : '1';
+    $('btnLinterna').textContent = on ? 'Linterna' : 'Linterna ON';
+  }
+}
+
+/* Detecta solo dentro del recuadro: más rápido y evita leer códigos vecinos. */
 async function leer() {
   if (!flujo) return;
   if (!ocupado) {
     ocupado = true;
     try {
-      const cs = await detector.detect($('video'));
+      const v = $('video');
+      let fuente = v;
+      if (v.videoWidth) {
+        lienzo = lienzo || document.createElement('canvas');
+        ctx2d = ctx2d || lienzo.getContext('2d', { willReadFrequently: true });
+        const w = Math.round(v.videoWidth * 0.84), h = Math.round(v.videoHeight * 0.56);
+        const x = Math.round((v.videoWidth - w) / 2), y = Math.round((v.videoHeight - h) / 2);
+        if (lienzo.width !== w) { lienzo.width = w; lienzo.height = h; }
+        ctx2d.drawImage(v, x, y, w, h, 0, 0, w, h);
+        fuente = lienzo;
+      }
+      const cs = await detector.detect(fuente);
+      diagTic();
       if (cs.length) {
         const cod = normalizar(cs[0].rawValue), t = Date.now();
-        if (cod && (cod !== ultimo.cod || t - ultimo.t > 2500)) { ultimo = { cod, t }; buscar(cod); }
+        diagAnota(cod, cs[0].format, mapa ? mapa.has(cod) : false);
+        if (cod.length >= 8 && (cod !== ultimo.cod || t - ultimo.t > 1200)) {
+          ultimo = { cod, t };
+          buscar(cod);
+        }
       }
     } catch (e) {}
     ocupado = false;
   }
-  setTimeout(() => requestAnimationFrame(leer), 180);
+  setTimeout(() => requestAnimationFrame(leer), 70);
 }
 
 /* ---------- base publicada en el repositorio ---------- */
@@ -472,6 +654,9 @@ function vigilarUbicacion() {
 $('btnBuscar').addEventListener('click', () => buscar($('codigo').value));
 $('codigo').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); buscar($('codigo').value); } });
 $('btnCamara').addEventListener('click', abrirCamara);
+$('btnZoomMas').addEventListener('click', () => cambiarZoom(2));
+$('btnZoomMenos').addEventListener('click', () => cambiarZoom(-2));
+$('btnLinterna').addEventListener('click', alternarLinterna);
 $('btnSonido').addEventListener('click', e => {
   sonido = !sonido; e.target.textContent = 'Sonido: ' + (sonido ? 'sí' : 'no');
   guardarLocal();
@@ -498,6 +683,7 @@ $('btnReintentar').addEventListener('click', vigilarUbicacion);
   prepararVoz();
   try { speechSynthesis.addEventListener('voiceschanged', prepararVoz); } catch (e) {}
   pintarResumen();
+  revisarNavegador();
   await cargarZona();
   cargarVoz();
   vigilarUbicacion();

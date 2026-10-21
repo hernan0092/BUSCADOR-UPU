@@ -1,9 +1,9 @@
 {
-  "FIVPS": "fibs",
+  "FIVPS": "fivps",
   "LIBRE": "libre",
-  "C2C": "ci-tu-ci",
+  "C2C": "situsi",
   "CARTA": "carta",
   "AFORO": "aforo",
   "RECLAMO": "reclamo",
-  "NO ESTA EN LA BASE": "no esta en la base"
+  "FUERA DE BASE": "fuera de base"
 }
