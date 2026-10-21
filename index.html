@@ -136,9 +136,10 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--marca);outline-
 </table>
 
 <div class="acciones">
+  <button type="button" id="btnReporte" class="destacado">Descargar reporte</button>
   <button type="button" id="btnReiniciar">Borrar el conteo</button>
 </div>
-<p class="aviso" id="pieInfo">Al abrir, el buscador revisa si hay base nueva. Si no la hay, no descarga nada y trabaja con la que ya tiene guardada el teléfono.</p>
+<p class="aviso" id="pieInfo">El reporte sale en CSV con la hora, la referencia, la clasificación y la caída de sorter de cada escaneo. Al abrir, el buscador revisa si hay base nueva. Si no la hay, no descarga nada y trabaja con la que ya tiene guardada el teléfono.</p>
 
 <script>
 'use strict';
@@ -147,8 +148,19 @@ let base = null, mapa = null, registro = [], sonido = true;
 let flujo = null, detector = null, ocupado = false, ultimo = { cod:'', t:0 };
 
 /* ---------- voz ---------- */
-const PRONUNCIA = { FIVPS:'fivps', LIBRE:'libre', C2C:'ce dos ce', CARTA:'carta',
-                    AFORO:'aforo', RECLAMO:'reclamo' };
+let PRONUNCIA = { FIVPS:'fivps', LIBRE:'libre', C2C:'situsi', CARTA:'carta',
+                  AFORO:'aforo', RECLAMO:'reclamo', 'NO ESTA EN LA BASE':'no está en la base' };
+async function cargarVoz() {        // voz.json permite afinar cómo suena cada clasificación
+  try {
+    const r = await fetch('./voz.json?t=' + Date.now(), { cache:'no-store' });
+    if (!r.ok) return;
+    const v = await r.json();
+    Object.keys(v).forEach(k => { PRONUNCIA[k.toUpperCase()] = String(v[k]); });
+    try { localStorage.setItem('sorter.voz', JSON.stringify(PRONUNCIA)); } catch (e) {}
+  } catch (e) {
+    try { const g = localStorage.getItem('sorter.voz'); if (g) PRONUNCIA = JSON.parse(g); } catch (e2) {}
+  }
+}
 let vozES = null;
 function prepararVoz() {
   try {
@@ -292,7 +304,8 @@ function buscar(entrada) {
   if (i === undefined) {
     registro.push({ cod, cl: clase, ca:'', t: ahora.toISOString() });
     mostrar('nulo', 'No está en la base', 'Esta referencia no figura en la base del sorter.', '', cod);
-    alarma('nulo', 'no está en la base'); guardarLocal(); pintarResumen(); return;
+    alarma('nulo', PRONUNCIA['NO ESTA EN LA BASE'] || 'no está en la base');
+    guardarLocal(); pintarResumen(); return;
   }
 
   registro.push({ cod, cl: clase, ca: caida, t: ahora.toISOString() });
@@ -373,6 +386,20 @@ async function bajarBase(aviso, forzar) {
   try { localStorage.setItem('sorter.version', (datos.version || datos.creado || d.fecha || String(Date.now()))); } catch (e) {}
   mostrar(null, 'Base actualizada', cuantas().toLocaleString('es-CL') + ' referencias listas para consultar.');
   return true;
+}
+
+/* ---------- reporte ---------- */
+function reporte() {
+  if (!registro.length) { mostrar('ojo', 'Nada que reportar', 'Todavía no hay referencias escaneadas.'); return; }
+  const filas = [['FECHA/HORA','REFERENCIA','CLASIFICACION','CAIDA SORTER']];
+  registro.forEach(r => filas.push([hora(new Date(r.t)), r.cod, r.cl, r.ca]));
+  const txt = '\ufeff' + filas.map(f => f.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([txt], { type:'text/csv;charset=utf-8' }));
+  a.download = 'reporte_sorter_' + new Date().toISOString().slice(0,16).replace(/[:T]/g,'-') + '.csv';
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  mostrar(null, 'Reporte descargado', registro.length + ' escaneos guardados en el archivo CSV.');
 }
 
 /* ---------- cerco de ubicación ---------- */
@@ -459,6 +486,7 @@ $('btnReiniciar').addEventListener('click', () => {
   registro = []; guardarLocal(); pintarResumen();
   mostrar(null, 'Conteo borrado', 'Puedes empezar un turno nuevo.');
 });
+$('btnReporte').addEventListener('click', reporte);
 $('btnReintentar').addEventListener('click', vigilarUbicacion);
 
 (async function inicio() {
@@ -471,6 +499,7 @@ $('btnReintentar').addEventListener('click', vigilarUbicacion);
   try { speechSynthesis.addEventListener('voiceschanged', prepararVoz); } catch (e) {}
   pintarResumen();
   await cargarZona();
+  cargarVoz();
   vigilarUbicacion();
   const b = await leerBase();
   if (b && (b.it || b.g)) { base = b; indexar(); sello(); mostrar(null, 'Listo para escanear', 'Aprieta Usar cámara o escribe la referencia.'); }
